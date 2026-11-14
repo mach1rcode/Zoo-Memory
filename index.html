@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Zoo Match</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Zoo Match">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#134a37">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  /* Layout idea: one screen. A thin grown-up bar on top, then a board of big square
+     tiles that always fill the space that remains. Single theme by choice: a leafy zoo. */
+  :root {
+    color-scheme: light;
+    --leaf: #1d6b4f;        /* page background */
+    --leaf-deep: #134a37;   /* bar, shadows */
+    --sun: #ffc93c;         /* tile backs, accent */
+    --sun-deep: #e0a100;
+    --paper: #fffaf0;       /* tile faces, text on green */
+    --ink: #17352a;         /* text on light */
+    --berry: #ff6b6b;       /* the one loud button */
+    --font-display: "Fredoka", "Trebuchet MS", "Arial Rounded MT Bold", sans-serif;
+    --font-body: "Nunito", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background:
+      radial-gradient(circle at 12% 8%, rgba(255,255,255,.08) 0 60px, transparent 61px),
+      radial-gradient(circle at 88% 92%, rgba(0,0,0,.10) 0 90px, transparent 91px),
+      var(--leaf);
+    color: var(--paper);
+    font-family: var(--font-body);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    user-select: none; -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+
+  header {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    gap: 8px 12px;
+    padding: 10px 16px;
+    background: var(--leaf-deep);
+  }
+  h1 {
+    font-family: var(--font-display); font-weight: 700;
+    font-size: 1.35rem; margin: 0; letter-spacing: .01em;
+  }
+  h1 span { color: var(--sun); }
+  .controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .stepper {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,.10); border-radius: 999px; padding: 4px 6px 4px 12px;
+    font-weight: 800; font-size: .9rem;
+  }
+  .stepper output {
+    font-family: var(--font-display); font-size: 1.15rem; min-width: 1.6em; text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  button { font: inherit; cursor: pointer; border: 0; }
+  button:focus-visible { outline: 3px solid var(--paper); outline-offset: 2px; }
+  .round {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--sun); color: var(--ink);
+    font-family: var(--font-display); font-size: 1.3rem; font-weight: 700; line-height: 1;
+  }
+  .round:disabled { opacity: .35; cursor: default; }
+  .pill {
+    height: 36px; padding: 0 14px; border-radius: 999px;
+    background: rgba(255,255,255,.14); color: var(--paper); font-weight: 800; font-size: .9rem;
+  }
+
+  main { flex: 1; min-height: 0; position: relative; padding: 16px; }
+  #board {
+    position: absolute; inset: 16px;
+    display: flex; flex-wrap: wrap; gap: var(--gap, 12px);
+    justify-content: center; align-content: center;
+    margin: auto;
+  }
+
+  .tile {
+    width: var(--s, 100px); height: var(--s, 100px);
+    padding: 0; background: none; perspective: 700px;
+  }
+  .inner {
+    position: relative; display: block; width: 100%; height: 100%;
+    transform-style: preserve-3d;
+    transition: transform .5s cubic-bezier(.3,1.25,.5,1);
+  }
+  .tile.up .inner { transform: rotateY(180deg); }
+  .back, .face {
+    position: absolute; inset: 0; border-radius: 18%;
+    backface-visibility: hidden; -webkit-backface-visibility: hidden;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .back {
+    background:
+      radial-gradient(circle at 50% 60%, var(--sun-deep) 0 17%, transparent 18%),
+      radial-gradient(circle at 27% 40%, var(--sun-deep) 0 8%, transparent 9%),
+      radial-gradient(circle at 42% 27%, var(--sun-deep) 0 8%, transparent 9%),
+      radial-gradient(circle at 58% 27%, var(--sun-deep) 0 8%, transparent 9%),
+      radial-gradient(circle at 73% 40%, var(--sun-deep) 0 8%, transparent 9%),
+      var(--sun);
+    box-shadow: 0 6px 0 var(--sun-deep), 0 10px 14px rgba(0,0,0,.25);
+  }
+  .face {
+    transform: rotateY(180deg);
+    background: var(--tint, var(--paper)); color: var(--ink);
+    box-shadow: 0 6px 0 rgba(0,0,0,.18), 0 10px 14px rgba(0,0,0,.25);
+    gap: 2%;
+  }
+  .emoji { font-size: calc(var(--s, 100px) * .56); line-height: 1.1; }
+  .name {
+    font-family: var(--font-display); font-weight: 600;
+    font-size: clamp(.6rem, calc(var(--s, 100px) * .13), 1.3rem);
+  }
+  .tile.matched .face { box-shadow: 0 0 0 5px var(--sun), 0 10px 14px rgba(0,0,0,.25); }
+  .tile.matched { animation: hop .6s ease; }
+  .tile.nope .inner { animation: wobble .4s ease .5s; }
+  @keyframes hop { 0%,100% { transform: scale(1); } 40% { transform: scale(1.12) rotate(-3deg); } 70% { transform: scale(.97) rotate(2deg); } }
+  @keyframes wobble { 0%,100% { translate: 0; } 25% { translate: -4% 0; } 75% { translate: 4% 0; } }
+
+  #win {
+    position: absolute; inset: 0; display: none;
+    flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+    background: rgba(19,74,55,.92); text-align: center; padding: 16px;
+  }
+  #win.show { display: flex; }
+  #win h2 {
+    font-family: var(--font-display); font-weight: 700; margin: 0;
+    font-size: clamp(1.8rem, 8vw, 3.2rem); color: var(--sun); text-wrap: balance;
+  }
+  #parade { font-size: clamp(2rem, 9vw, 3.6rem); display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-width: 520px; }
+  #parade span { animation: bob 1.2s ease-in-out infinite; }
+  @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
+  #again {
+    font-family: var(--font-display); font-weight: 700; font-size: 1.6rem;
+    padding: 16px 40px; border-radius: 999px;
+    background: var(--berry); color: #fff; box-shadow: 0 6px 0 #c94444;
+  }
+  #again:active { transform: translateY(4px); box-shadow: 0 2px 0 #c94444; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .inner { transition: none; }
+    .tile.matched, .tile.nope .inner, #parade span { animation: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Zoo <span>Match</span></h1>
+  <div class="controls">
+    <div class="stepper" role="group" aria-label="Number of tiles">
+      <span>Tiles</span>
+      <button class="round" id="less" aria-label="Two fewer tiles">&minus;</button>
+      <output id="count" for="less more">6</output>
+      <button class="round" id="more" aria-label="Two more tiles">+</button>
+    </div>
+    <button class="pill" id="sound" aria-pressed="true">Sound on</button>
+    <button class="pill" id="fresh">New game</button>
+  </div>
+</header>
+
+<main>
+  <div id="board" aria-label="Animal tiles"></div>
+  <div id="win" role="dialog" aria-labelledby="winText">
+    <h2 id="winText">You found them all!</h2>
+    <div id="parade" aria-hidden="true"></div>
+    <button id="again">Play again</button>
+  </div>
+</main>
+
+<script>
+(function () {
+  var ANIMALS = [
+    ["Lion", "🦁", "#ffe3a3"], ["Elephant", "🐘", "#dfe6f2"], ["Giraffe", "🦒", "#fff0b8"],
+    ["Zebra", "🦓", "#f0f0f0"], ["Monkey", "🐒", "#f3dcc4"], ["Panda", "🐼", "#dff3e4"],
+    ["Tiger", "🐯", "#ffd9b0"], ["Hippo", "🦛", "#e5dcf2"], ["Penguin", "🐧", "#d6ecfb"],
+    ["Flamingo", "🦩", "#ffdbe6"], ["Bear", "🐻", "#ecd9c6"], ["Crocodile", "🐊", "#d5efc4"],
+    ["Kangaroo", "🦘", "#f7dfc9"], ["Rhino", "🦏", "#e2e2e2"], ["Parrot", "🦜", "#d9f5d0"],
+    ["Camel", "🐫", "#f6e6bd"]
+  ];
+  var MIN = 4, MAX = 24;
+  var board = document.getElementById("board");
+  var main = document.querySelector("main");
+  var win = document.getElementById("win");
+  var countEl = document.getElementById("count");
+  var soundBtn = document.getElementById("sound");
+
+  var state = { count: 6, sound: true, deck: [] };   // deck: [{a: animalIndex, m: matched}]
+  var open = [];        // indexes of the tiles that are face up and not matched
+  var locked = false;
+  var timer = null;
+
+  /* ---------- sound: soft sine tones, started only from a tap ---------- */
+  var ctx = null, keepAlive = null, unlocked = false;
+  // iPhone: the ring/silent switch mutes Web Audio unless the page is in "playback" mode.
+  try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch (e) {}
+  function silentWav() {
+    // 0.25 s of silence, built here so no file has to load.
+    var rate = 8000, n = rate / 4, buf = new ArrayBuffer(44 + n), v = new DataView(buf);
+    function str(o, s) { for (var i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); }
+    str(0, "RIFF"); v.setUint32(4, 36 + n, true); str(8, "WAVEfmt ");
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+    str(36, "data"); v.setUint32(40, n, true);
+    for (var i = 0; i < n; i++) v.setUint8(44 + i, 128);
+    return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+  }
+  // Runs on every touch until the audio system is awake.
+  function unlock() {
+    if (!state.sound) return;
+    try {
+      if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state !== "running") ctx.resume();
+      if (!unlocked) {
+        var b = ctx.createBuffer(1, 1, 22050), s = ctx.createBufferSource();
+        s.buffer = b; s.connect(ctx.destination); s.start(0);
+      }
+      // Older iPhones: a silent, looping media element moves audio off the ringer channel.
+      if (!keepAlive && !navigator.audioSession) {
+        keepAlive = new Audio(silentWav());
+        keepAlive.loop = true; keepAlive.setAttribute("playsinline", "");
+        var p = keepAlive.play(); if (p && p.catch) p.catch(function () {});
+      }
+      if (keepAlive && keepAlive.paused && !document.hidden) {
+        var q = keepAlive.play(); if (q && q.catch) q.catch(function () {});
+      }
+      if (ctx.state === "running") unlocked = true;
+    } catch (e) {}
+  }
+  ["touchstart", "touchend", "pointerdown", "click", "keydown"].forEach(function (ev) {
+    document.addEventListener(ev, unlock, { capture: true, passive: true });
+  });
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden && keepAlive) keepAlive.pause();
+    else if (!document.hidden) unlocked = false;
+  });
+  function audio() {
+    if (!state.sound) return null;
+    unlock();
+    return ctx;
+  }
+  function tone(freq, delay, dur, vol, type) {
+    var c = audio(); if (!c) return;
+    if (c.state !== "running") {
+      // Wait for the audio system, then play. Otherwise the first tones are lost.
+      try { c.resume().then(function () { play(c, freq, delay, dur, vol, type); }).catch(function () {}); } catch (e) {}
+      return;
+    }
+    play(c, freq, delay, dur, vol, type);
+  }
+  function play(c, freq, delay, dur, vol, type) {
+    try {
+      var t = c.currentTime + 0.01 + delay;
+      var o = c.createOscillator(), g = c.createGain();
+      o.type = type || "sine"; o.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(c.destination);
+      o.start(t); o.stop(t + dur + 0.05);
+    } catch (e) {}
+  }
+  var sfx = {
+    flip:  function () { tone(540, 0, 0.12, 0.12, "triangle"); },
+    match: function () { tone(659, 0, 0.3, 0.2); tone(880, 0.13, 0.3, 0.2); tone(1047, 0.26, 0.5, 0.2); },
+    miss:  function () { tone(330, 0, 0.18, 0.09); tone(294, 0.12, 0.22, 0.09); },
+    win:   function () { [523, 659, 784, 1047, 1319].forEach(function (f, i) { tone(f, i * 0.14, 0.45, 0.2); }); }
+  };
+
+  /* ---------- game ---------- */
+  function shuffle(a) {
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+  function newGame() {
+    clearTimeout(timer); locked = false; open = [];
+    var picks = shuffle(ANIMALS.map(function (_, i) { return i; })).slice(0, state.count / 2);
+    state.deck = shuffle(picks.concat(picks)).map(function (a) { return { a: a, m: false }; });
+    render();
+  }
+  function render() {
+    win.classList.remove("show");
+    countEl.textContent = state.count;
+    document.getElementById("less").disabled = state.count <= MIN;
+    document.getElementById("more").disabled = state.count >= MAX;
+    soundBtn.textContent = state.sound ? "Sound on" : "Sound off";
+    soundBtn.setAttribute("aria-pressed", String(state.sound));
+    board.innerHTML = "";
+    state.deck.forEach(function (card, i) {
+      var an = ANIMALS[card.a];
+      var b = document.createElement("button");
+      b.className = "tile" + (card.m ? " up matched" : "");
+      b.dataset.i = i;
+      b.setAttribute("aria-label", card.m ? an[0] : "Hidden tile " + (i + 1));
+      b.innerHTML = '<span class="inner"><span class="back"></span>' +
+        '<span class="face" style="--tint:' + an[2] + '"><span class="emoji">' + an[1] +
+        '</span><span class="name">' + an[0] + '</span></span></span>';
+      board.appendChild(b);
+    });
+    layout();
+    if (state.deck.length && state.deck.every(function (c) { return c.m; })) showWin(false);
+  }
+  function layout() {
+    var W = main.clientWidth - 32, H = main.clientHeight - 32, n = state.deck.length;
+    if (!n || W <= 0 || H <= 0) return;
+    var gap = n > 12 ? 8 : 12, best = 0, bestCols = 1;
+    for (var cols = 1; cols <= n; cols++) {
+      var rows = Math.ceil(n / cols);
+      var s = Math.min((W - gap * (cols - 1)) / cols, (H - gap * (rows - 1)) / rows);
+      if (s > best) { best = s; bestCols = cols; }
+    }
+    best = Math.floor(Math.min(best, 220));
+    board.style.setProperty("--s", best + "px");
+    board.style.setProperty("--gap", gap + "px");
+    board.style.width = (bestCols * best + (bestCols - 1) * gap) + "px";
+    board.style.height = "auto";
+    board.style.maxHeight = H + "px";
+  }
+  function tileEl(i) { return board.children[i]; }
+
+  function tap(i) {
+    var card = state.deck[i];
+    if (locked || !card || card.m || open.indexOf(i) !== -1) return;
+    var el = tileEl(i);
+    el.classList.add("up");
+    el.setAttribute("aria-label", ANIMALS[card.a][0]);
+    open.push(i);
+    sfx.flip();
+    if (open.length < 2) return;
+
+    var a = open[0], b = open[1];
+    locked = true;
+    if (state.deck[a].a === state.deck[b].a) {
+      state.deck[a].m = state.deck[b].m = true;
+      timer = setTimeout(function () {
+        tileEl(a).classList.add("matched"); tileEl(b).classList.add("matched");
+        sfx.match();
+        open = []; locked = false;
+        if (state.deck.every(function (c) { return c.m; })) timer = setTimeout(function () { showWin(true); }, 1100);
+      }, 450);
+    } else {
+      tileEl(a).classList.add("nope"); tileEl(b).classList.add("nope");
+      timer = setTimeout(sfx.miss, 550);
+      // A long look before the tiles turn back: a toddler needs the time.
+      setTimeout(function () {
+        [a, b].forEach(function (k) {
+          var t = tileEl(k); if (!t) return;
+          t.classList.remove("up", "nope");
+          t.setAttribute("aria-label", "Hidden tile " + (k + 1));
+        });
+        open = []; locked = false;
+      }, 1700);
+    }
+  }
+  function showWin(withSound) {
+    var seen = {}, html = "";
+    state.deck.forEach(function (c) {
+      if (seen[c.a]) return; seen[c.a] = 1;
+      html += '<span style="animation-delay:' + (Object.keys(seen).length * 0.12) + 's">' + ANIMALS[c.a][1] + "</span>";
+    });
+    document.getElementById("parade").innerHTML = html;
+    win.classList.add("show");
+    if (withSound) sfx.win();
+  }
+  function setCount(n) {
+    n = Math.max(MIN, Math.min(MAX, n - (n % 2)));
+    state.count = n;
+    try { localStorage.setItem("zooMatchTiles", String(n)); } catch (e) {}
+    newGame();
+  }
+
+  /* ---------- events ---------- */
+  board.addEventListener("click", function (e) {
+    var t = e.target.closest(".tile"); if (t) tap(Number(t.dataset.i));
+  });
+  document.getElementById("less").addEventListener("click", function () { setCount(state.count - 2); });
+  document.getElementById("more").addEventListener("click", function () { setCount(state.count + 2); });
+  document.getElementById("fresh").addEventListener("click", newGame);
+  document.getElementById("again").addEventListener("click", newGame);
+  soundBtn.addEventListener("click", function () {
+    state.sound = !state.sound;
+    try { localStorage.setItem("zooMatchSound", state.sound ? "1" : "0"); } catch (e) {}
+    soundBtn.textContent = state.sound ? "Sound on" : "Sound off";
+    soundBtn.setAttribute("aria-pressed", String(state.sound));
+    if (state.sound) sfx.flip();
+  });
+  window.addEventListener("resize", layout);
+  document.addEventListener("gesturestart", function (e) { e.preventDefault(); });
+
+  /* ---------- start (keeps the game across a page update) ---------- */
+  function start(saved) {
+    try {
+      var c = parseInt(localStorage.getItem("zooMatchTiles"), 10);
+      if (c >= MIN && c <= MAX && c % 2 === 0) state.count = c;
+      if (localStorage.getItem("zooMatchSound") === "0") state.sound = false;
+    } catch (e) {}
+    if (saved && Array.isArray(saved.deck) && saved.deck.length >= MIN && saved.deck.length % 2 === 0) {
+      state.count = saved.deck.length; state.deck = saved.deck;
+      if (typeof saved.sound === "boolean") state.sound = saved.sound;
+      render();
+    } else {
+      newGame();
+    }
+  }
+  // Offline play when the game is on the Home Screen. Some viewers refuse this: that is fine.
+  try {
+    if ("serviceWorker" in navigator && location.protocol === "https:" && window.top === window) {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    }
+  } catch (e) {}
+
+  var hot = window.claude && window.claude.hot;
+  if (hot && hot.snapshot) hot.snapshot(function () { return state; });
+  if (hot && hot.ready) hot.ready(start); else start((hot && hot.data) || {});
+})();
+</script>
+</body>
+</html>
